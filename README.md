@@ -10,4 +10,4 @@ A simple web font loader
 
 ## backbone.baseview.js
 
-A Backbone base view helping you managing its lifecycle and sub views.
+A Backbone base view helping you mange its lifecycle and sub views.
