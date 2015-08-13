@@ -78,7 +78,7 @@ define([
       return _.extend({}, data, parsedOptions);
     },
     getAttributes: function () {
-      var attributes = {};
+      var attributes = _.extend({}, _.result(this, 'attributes'));
 
       attributes['data-view'] = this.name;
 
@@ -89,6 +89,7 @@ define([
     },
     _postRender: function () {
       this.removeChildViews();
+      this.addReferences();
       this.trigger('postRender');
 
       return this;
@@ -102,7 +103,6 @@ define([
       Backbone.View.prototype.trigger.call(this, 'render');
     },
     onRenderComponentsDone: function () {
-      this.addReferences();
       this._postRenderComponents();
     },
     render: function () {
@@ -150,22 +150,50 @@ define([
         // create a reference back to this (parent) view
         view.parent = view.parentView = this;
         view.selector = selector;
-        // change the view's element (`this.el` property), including re-delegation events
-        view.setElement(this.$(selector)).render();
+
+        if (view.appendToParent) {
+          view.name = selector;
+          view.render();
+          this.$el.append(view.el);
+        } else {
+          // change the view's element (`this.el` property), including re-delegation events
+          view.setElement(this.$(selector)).render();
+        }
         // cache the childViews in order to remove it when exiting
         this.childViews.push(view);
       }, this);
 
       return this;
     },
+    where: function (attrs, first) {
+      var matches = _.matches(attrs);
+      var childViews = this.getChildViews();
+      return this[first ? 'find' : 'filter'](childViews, function (childView) {
+        return matches(childView);
+      });
+    },
+    find: function () {
+      return _.find.apply(_, arguments);
+    },
+    filter: function () {
+      return _.filter.apply(_, arguments);
+    },
+    findWhere: function (attrs) {
+      return this.where(attrs, true);
+    },
     getChildViewsByName: function (name) {
-      return _.where(this.childViews, {
+      return this.where({
+        name: name
+      });
+    },
+    getChildViewByName: function (name) {
+      return this.findWhere({
         name: name
       });
     },
     getChildViewBySelector: function (selector) {
-      return _.find(this.childViews, function (subView) {
-        return subView.selector === selector;
+      return this.findWhere({
+        selector: selector
       });
     },
     trigger: function (channel) {
