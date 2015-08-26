@@ -33,3 +33,7 @@ A simple curry function implementation.
 # tempest.js
 
 A simple layout manager. Creating a way for regions to be defined and used to create swappable layout.
+
+# ajax.call.js
+
+A succinct way of making Ajax calls.
