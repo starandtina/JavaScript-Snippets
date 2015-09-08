@@ -121,10 +121,11 @@ define([
     postRender: _.noop,
     preRenderComponents: _.noop,
     postRenderComponents: _.noop,
-    registerChildView: function (view) {
+    registerChildView: function (view, name) {
       // Storage for our subViews.
+      name = name || view.cid
       this.childViews = this.getChildViews();
-      this.childViews.push(view);
+      this.childViews[name] = view;
 
       if (view.el) {
         view.parent = view.parentView = this;
@@ -144,8 +145,6 @@ define([
 
       if (!selectors) return;
 
-      this.childViews = this.getChildViews();
-
       _.each(selectors, function (view, selector) {
         // create a reference back to this (parent) view
         view.parent = view.parentView = this;
@@ -160,7 +159,7 @@ define([
           view.setElement(this.$(selector)).render();
         }
         // cache the childViews in order to remove it when exiting
-        this.childViews.push(view);
+        this.registerChildView(view);
       }, this);
 
       return this;
@@ -218,10 +217,6 @@ define([
       });
       var containerEl = this.$(container);
 
-      // store a reference on the view to it's collection views
-      // so we can clean up memory references when we're done
-      this.registerChildView(views);
-
       function getViewBy(model) {
         return _.find(views, function (view) {
           return model === view.model;
@@ -248,6 +243,9 @@ define([
             view.render({
               containerEl: container
             });
+            // store a reference on the view to it's collection views
+            // so we can clean up memory references when we're done
+            self.registerChildView(view);
           }
           // give the option for the view to choose where it's inserted if you so choose
           if (!view.insertSelf) containerEl[options.reverse ? 'prepend' : 'append'](view.el);
@@ -288,17 +286,20 @@ define([
       this.close();
     },
     getChildViews: function () {
-      return this.childViews || [];
+      return this.childViews || (this.childViews = {});
     },
     removeChildViews: function () {
-      // lodash won't make it work: ` _.chain(this.getChildViews()).flatten().invoke('destroy');`
-      _.forEach(_.chain(this.getChildViews()).flatten().value(), function (childView, index) {
-        _.invoke([childView], 'destroy');
-      });
-      // reset `childViews`
-      this.childViews = [];
+      _.forEach(this.getChildViews(), function (childView, name) {
+        this.removeChildView(childView, name);
+      }, this);
 
       return this;
+    },
+    removeChildView: function (childView, name) {
+      name = name || childView.cid;
+      _.invoke([childView], 'destroy');
+      var childViews = this.getChildViews();
+      delete this.childViews[name];
     },
     addReferences: function (hash) {
       hash = hash || _.result(this, 'references');

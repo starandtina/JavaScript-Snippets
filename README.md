@@ -37,3 +37,7 @@ A simple layout manager. Creating a way for regions to be defined and used to cr
 # vars.js
 
 Use a tagged template to log variables more efficiently.
+
+# ajax.call.js
+
+A succinct way of making Ajax calls.
