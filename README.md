@@ -41,3 +41,7 @@ Use a tagged template to log variables more efficiently.
 # ajax.call.js
 
 A succinct way of making Ajax calls.
+
+# hyphenate.css
+
+Better solution for dealing with long words in CSS.

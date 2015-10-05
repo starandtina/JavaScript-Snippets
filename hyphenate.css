@@ -1,0 +1,11 @@
+/* Refer to https://justmarkup.com/log/2015/07/31/dealing-with-long-words-in-css/ */
+.hyphenate
+{
+    word-wrap: break-word;
+    -webkit-hyphens: auto;
+       -moz-hyphens: auto;
+            hyphens: auto;
+
+    overflow-wrap: break-word;
+        -ms-hyphens: auto;
+}
