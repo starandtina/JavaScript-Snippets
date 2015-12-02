@@ -45,3 +45,7 @@ A succinct way of making Ajax calls.
 # hyphenate.css
 
 Better solution for dealing with long words in CSS.
+
+# gen.run.js
+
+The simplest generator controller used to handle the execution of the generator, fulfill async requests, and return the results back. 
