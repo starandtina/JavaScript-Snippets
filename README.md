@@ -49,3 +49,19 @@ Better solution for dealing with long words in CSS.
 # back.to.top.js
 
 Back to top button.
+
+# poll.js
+
+It let you check for your desired state at intervals.
+
+# getAbsoluteUrl.js
+
+Getting an absolute URL from a variable string.
+
+# insertRule.js
+
+Inserting CSS Rules at run time.
+
+# matchesSelector.js
+
+Method of testing whether or not a DOM element matches a given selector.
