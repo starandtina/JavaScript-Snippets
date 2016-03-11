@@ -1,10 +1,22 @@
 define([
   'jquery',
-  'lodash',
+  'active/endurance/base/underscore_extension',
+  'active/endurance/base/flux/FluxEventEmitter',
   'backbone',
-  'active/endurance/base/active'
-], function ($, _, Backbone, active) {
+  'active/endurance/active'
+], function ($, _, FluxEventEmitter, Backbone, active) {
   'use strict';
+
+  function stopListening(target) {
+    if (target) {
+      if (_.isFunction(target.stopListening)) {
+        target.stopListening();
+      }
+      if (_.isFunction(target.stopListeningToAll)) {
+        target.stopListeningToAll();
+      }
+    }
+  }
 
   Backbone.View.prototype.close = function () {
     // Disposing arch-html components and call `dispose` method on every component if exists
@@ -21,6 +33,10 @@ define([
       this.onClose();
     }
 
+    // `stopListening` on Model and Collection
+    stopListening.call(this, this.model);
+    stopListening.call(this, this.collection);
+
     // Remove `this.el` and related events from DOM
     this.remove();
     // Off any events that current view is bound to
@@ -29,12 +45,34 @@ define([
     return this;
   };
 
+  Backbone.View.hasUnsavedModel = function (view) {
+    var viewHasUnsavedModel = view.hasUnsavedModel ? view.hasUnsavedModel() : false;
+
+    if (viewHasUnsavedModel) {
+      return true;
+    } else {
+      view.childViews = view.childViews || [];
+
+      for (var i = 0, l = view.childViews.length; i < l; i++) {
+        if (Backbone.View.hasUnsavedModel(view.childViews[i])) {
+          return true;
+        }
+      }
+      return false;
+    }
+  };
+
   return Backbone.View.extend({
     constructor: function (options) {
       _.bindAll.apply(_, [this].concat(_.functions(this)));
 
       this.options = _.extend(this.options || {}, options || {});
       this.name = this.name || _.uniqueId('view');
+
+      var mixins = [].concat(this.mixins);
+      _.forEach(mixins, function (mixin) {
+        _.extend(this, mixin);
+      }, this);
 
       Backbone.View.apply(this, arguments);
     },
@@ -98,22 +136,31 @@ define([
       this.trigger('preRenderComponents');
     },
     _postRenderComponents: function () {
+      var hash = this._references || _.result(this, 'references');
+
+      for (var item in hash) {
+        this[item] = active.getComponent(this.$(hash[item]));
+      }
       this.trigger('postRenderComponents');
-      // Integrate with {active.endurance.base.View}
-      Backbone.View.prototype.trigger.call(this, 'render');
     },
     onRenderComponentsDone: function () {
+      active.app.applyPermissionsToHtml(this.$el);
+      active.app.applyFeaturesToHtml(this.$el);
       this._postRenderComponents();
+    },
+    _activeRenderCallback: function ($html) {
+      this.$el.html($html);
+      this.onRenderComponentsDone();
     },
     render: function () {
       var html = this.getInnerHtml();
+      var $html = $(html);
 
-      this.$el.html(html);
       this.$el.attr(this.getAttributes());
       this._postRender();
 
       this._preRenderComponents();
-      active.render(this.$el, this.onRenderComponentsDone);
+      active.render($html, _.partial(this._activeRenderCallback, $html));
 
       return this;
     },
@@ -122,16 +169,20 @@ define([
     preRenderComponents: _.noop,
     postRenderComponents: _.noop,
     registerChildView: function (view, name) {
-      // Storage for our subViews.
+      var childViews = this.getChildViews();
+      // Storage for our child view
       name = name || view.cid
-      this.childViews = this.getChildViews();
-      this.childViews[name] = view;
+      childViews[name] = view;
 
       if (view.el) {
         view.parent = view.parentView = this;
       }
 
       return view;
+    },
+    // Proxy for `registerChildView`
+    registerSubview: function () {
+      this.registerChildView.apply(this, arguments);
     },
     renderChildViews: function (selector, view) {
       var selectors;
@@ -164,6 +215,9 @@ define([
 
       return this;
     },
+    assign: function () {
+      this.renderChildViews.apply(this, arguments);
+    },
     where: function (attrs, first) {
       var matches = _.matches(attrs);
       var childViews = this.getChildViews();
@@ -195,6 +249,9 @@ define([
         selector: selector
       });
     },
+    getSubViewBySelector: function () {
+      return this.getChildViewBySelector.apply(this, arguments);
+    },
     trigger: function (channel) {
       if (_.isFunction(this[channel])) {
         this[channel].apply(this, [].slice.call(arguments, 1));
@@ -203,8 +260,7 @@ define([
       Backbone.View.prototype.trigger.apply(this, arguments);
 
       return this;
-    },
-    // Rendering a collections with individual views.
+    }, // Rendering a collections with individual views.
     // Just pass it the collection, and the view to use for the items in the
     // collection.
     renderCollection: function (collection, ViewClass, container, opts) {
@@ -233,7 +289,7 @@ define([
           });
           view = getViewBy(model);
           if (!view) {
-            view = new ViewClass(_({
+            view = new ViewClass(_.chain({
               model: model,
               collection: collection
             }).extend(options.viewOptions).value());
@@ -279,14 +335,47 @@ define([
       });
       reRender();
     },
-    destroy: function () {
+    addReferences: function (hash) {
+      hash = hash || _.result(this, 'references');
+
+      this._references = _.defaults({}, this._references, hash);
+
+      for (var item in hash) {
+        this['$' + item] = this.$(hash[item]);
+      }
+    },
+    // Reducing boilerplate and set up one-one releation between DOM and component
+    references: function () {
+      return _.reduce(_.result(this, 'dom') || {}, function (memo, v, k) {
+        memo[_.camelize(k.toLocaleLowerCase())] = v;
+
+        return memo;
+      }, {});
+    },
+    // Refer to **fnd/arch/events/NavExitEvent** for argument of navExitEvent
+    exit: function (navExitEvent) {
       // Disposing view hierarchies
       this.removeChildViews();
-      // Remove current view out of the DOM and stop listening any events binding through __listenTo__
+      this.childViews = null;
+      this.parentView = null;
+
+      // Prefer to use `listenTo` instead of `this.model.on` but we should prevent it from memory leak
+      var obj = this.model || this.collection;
+
+      if (obj) {
+        obj.off(null, null, this);
+      }
+
+      // Removing current view out of the DOM
+      // Stop listening any events binding through `listenTo`
       this.close();
-    },
-    getChildViews: function () {
-      return this.childViews || (this.childViews = {});
+
+      // Trigger `remove` event
+      this.trigger('remove');
+
+      // 1. Empty **#navigationContainer**
+      // 2. Navigate to a brand path
+      navExitEvent.complete();
     },
     removeChildViews: function () {
       _.forEach(this.getChildViews(), function (childView, name) {
@@ -297,16 +386,25 @@ define([
     },
     removeChildView: function (childView, name) {
       name = name || childView.cid;
-      _.invoke([childView], 'destroy');
+
+      if (childView && _.isFunction(childView.close)) {
+        childView.close();
+      }
+
       var childViews = this.getChildViews();
+
       delete this.childViews[name];
     },
-    addReferences: function (hash) {
-      hash = hash || _.result(this, 'references');
+    getChildViews: function () {
+      this.childViews = this.childViews || {};
 
-      for (var item in hash) {
-        this['$' + item] = this.$(hash[item], this.el);
-      }
+      return this.childViews;
+    },
+    // Used by `active.navigator` as an entry point
+    enter: function () {
+      this.render();
+
+      return this.$el;
     }
   });
 });
