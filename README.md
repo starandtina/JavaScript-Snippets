@@ -65,3 +65,7 @@ Inserting CSS Rules at run time.
 # matchesSelector.js
 
 Method of testing whether or not a DOM element matches a given selector.
+
+# h.js
+
+Helper functions.
