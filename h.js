@@ -62,3 +62,29 @@ h.index = function (el, selector) {
 
   return i;
 };
+
+// Basically, A thunk is a function that wraps an expression to delay its evaluation.
+// calculation of 1 + 2 is delayed
+// foo can be called later to perform the calculation
+// foo is a thunk!
+// let foo = () => 1 + 2;
+
+// Refer to http://blog.getify.com/thoughts-on-thunks/
+// An eager async thunk is basically an early predecessor to promises. 
+// To put it another way, a promise is an evolved thunk with a fancier API (and a few other important characteristics, too).
+h.makeEagerAsyncThunk = function (fn, ...args) {
+  var v = {};
+  var fns = [];
+  fn(...args, function waitForIt(...args) {
+    if (!("args" in v)) v.args = args;
+    if (fns.length > 0) {
+      while (fns.length > 0) {
+        fns.shift()(...v.args);
+      }
+    }
+  });
+  return function thunk(cb) {
+    if ("args" in v) cb(...v.args);
+    else fns.push(cb);
+  };
+}
